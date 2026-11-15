@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>월간 캘린더</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- 사용법을 단순하게 하기 위해 FullCalendar 6 버전을 고정해서 사용 -->
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.22/index.global.min.js"></script>  <!-- FullCanlender의 기능 불러오기 -->
+  <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.22/locales-all.global.min.js"></script>  <!-- 여러 언어 설정 불러오기 -->
+  <script src="app.js" defer></script>  <!-- 작성한  JavaScript 코드 불러오기 -->
+</head>
+<body>
+  <main class="container">
+    <header class="topbar">
+      <div><h1>월간 캘린더</h1><p>날짜를 클릭하면 일정을 추가할 수 있습니다.</p></div>
+      <button id="addBtn" type="button">+ 일정 등록</button>
+    </header>
+    <div id="calendar"></div>
+  </main>
+
+    <!-- 날짜를 클릭했을 때 표시되는 일정 목록창 -->
+  <dialog id="dateDialog">
+    <h2 id="dateDialogTitle">선택한 날짜의 일정</h2>
+    <div id="dateEventList" class="event-list"></div>
+    <div class="actions">
+      <button id="closeDateBtn" class="secondary" type="button">닫기</button>
+      <button id="createOnDateBtn" type="button">일정 등록</button>
+    </div>
+  </dialog>
+
+  <!-- 일정을 클릭했을 때 표시되는 일정 상세창 -->
+
+<!-- 일정을 클릭했을 때 표시되는 상세창 -->
+<dialog id="detailDialog">
+  <h2 id="detailTitle"></h2>
+  <dl class="details">
+    <div class="detail-date-row">
+      <div><dt>시작 날짜</dt><dd id="detailStart"></dd></div>
+      <div><dt>종료 날짜</dt><dd id="detailEnd"></dd></div>
+    </div>
+    <div class="detail-info-row">
+      <div><dt>시간</dt><dd id="detailTime"></dd></div>
+      <div><dt>장소</dt><dd id="detailLocation"></dd></div>
+    </div>
+    <dt>내용</dt><dd id="detailDescription"></dd>
+  </dl>
+  <p id="detailError" role="alert"></p>
+  <div class="actions">
+    <button id="detailDeleteBtn" class="danger" type="button">삭제</button>
+    <button id="detailCloseBtn" class="secondary" type="button">닫기</button>
+    <button id="detailEditBtn" type="button">수정</button>
+  </div>
+</dialog>
+
+
+  <dialog id="eventDialog">
+    <form id="eventForm">
+      <h2 id="dialogTitle">새 일정</h2>
+      <label for="eventTitle">제목</label>
+      <input id="eventTitle" type="text" maxlength="100" required>
+
+      <!-- 하루 종일 스위치 -->
+      <label class="all-day-row" for="allDay">
+        <span>◷ 하루 종일</span><span class="switch"><input type="checkbox" id="allDay"><span class="switch-slider"></span></span>
+      </label>
+
+      <div class="date-input-row">
+        <div><label for="startDate">시작 날짜</label><input id="startDate" type="date" required></div>
+        <div><label for="endDate">종료 날짜</label><input id="endDate" type="date" required></div>
+      </div>
+
+      <!-- 하루 종일이 꺼져 있을 때만 보이는 시간 입력 -->
+      <div id="timeSection" class="time-input-row">
+        <div><label for="startTime">시작 시간</label><input id="startTime" type="time" value="08:00"></div>
+        <div><label for="endTime">종료 시간</label><input id="endTime" type="time" value="09:00"></div>
+      </div>
+
+      <label for="eventLocation">장소 (선택)</label>
+      <input id="eventLocation" type="text" maxlength="200" placeholder="예: 학교 도서관">
+      <label for="eventColor">색상</label>
+      <input id="eventColor" type="color" value="#2563eb">
+      <label for="eventDescription">내용</label>
+      <textarea id="eventDescription" rows="4" maxlength="2000"></textarea>
+      <p id="formError" role="alert"></p>
+      <div class="actions">
+        <button id="deleteBtn" class="danger" type="button" hidden>삭제</button>
+        <button id="cancelBtn" class="secondary" type="button">취소</button>
+        <button type="submit">저장</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>
