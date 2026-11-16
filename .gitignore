@@ -1,0 +1,16 @@
+## Local environment secrets
+.env
+.env.*
+.env *
+!.env.example
+
+## Collected syllabus files
+/crawled_syllabus/
+
+## Python generated files
+__pycache__/
+*.py[cod]
+.venv/
+
+## Local documents
+[팀프로젝트] 소프트웨어 처음부터 끝까지 만들어보기 40c3e6c6174a801d9333c38ed1e7f455.pdf

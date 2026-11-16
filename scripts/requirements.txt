@@ -1,0 +1,6 @@
+# Python 3.11+ (the crawler uses hashlib.file_digest).
+# Regular-course HTTP crawling and PDF verification.
+PyMuPDF>=1.26.5,<2
+requests>=2.28,<3
+
+# Supabase synchronization and .env loading use the Python standard library.
