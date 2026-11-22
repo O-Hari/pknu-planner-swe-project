@@ -401,3 +401,27 @@ textarea {
   .fc .fc-toolbar { flex-wrap: wrap; gap: 10px; }
   .fc .fc-toolbar-title { font-size: 18px; }
 }
+
+/* =========================
+   9. 주간 뷰 스타일
+========================= */
+
+/* 시간대 슬롯 높이 */
+.fc .fc-timegrid-slot {
+  height: 2.2em;
+}
+
+/* 현재 시간 표시선 */
+.fc .fc-timegrid-now-indicator-line {
+  border-color: #ef4444;
+}
+
+.fc .fc-timegrid-now-indicator-arrow {
+  border-top-color: #ef4444;
+  border-bottom-color: #ef4444;
+}
+
+/* 주간 뷰 이벤트 */
+.fc .fc-timegrid-event {
+  border-radius: 6px;
+}

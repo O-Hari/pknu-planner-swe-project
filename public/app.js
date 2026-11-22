@@ -137,9 +137,9 @@ const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), 
   locale: 'ko', // 한국어 사용
   firstDay: 0,  // 일요일부터 한 주 시작
   height: 'auto',
-  headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+  headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
   events: '/api/events',
-  dateClick: info => openDateList(info.dateStr),  // 날짜를 클릭했을 때 openDateList()를 실행
+  dateClick: info => openDateList(info.dateStr.slice(0, 10)),  // 날짜를 클릭했을 때 openDateList()를 실행
   eventClick: info => { // 일정 클릭했을 때 openDetail() 실행
     info.jsEvent.preventDefault();
     openDetail(info.event);
