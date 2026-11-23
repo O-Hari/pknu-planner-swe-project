@@ -1,0 +1,1 @@
+"""PKNU Planner FastAPI backend."""
