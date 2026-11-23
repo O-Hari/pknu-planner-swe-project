@@ -130,6 +130,9 @@ function updateTimeVisibility() {
   endTimeInput.disabled = isAllDay;
 }
 allDayInput.addEventListener('change', updateTimeVisibility);
+startInput.addEventListener('change', () => {  // 시작 날짜 변경되면 종료 날짜도 시작 날짜로 변경
+  endInput.value = startInput.value;
+});
 
 // 달력 표시할 위치 찾아서, 달력 생성하기
 const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
@@ -143,6 +146,25 @@ const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), 
   eventClick: info => { // 일정 클릭했을 때 openDetail() 실행
     info.jsEvent.preventDefault();
     openDetail(info.event);
+  },
+  datesSet: info => {
+    if (info.view.type === 'timeGridWeek') {
+      calendar.setOption('height', 650);  // 주간 뷰: 고정 높이 → 내부 스크롤 생김
+      setTimeout(() => {
+        const timedEvents = calendar.getEvents().filter(e =>
+          !e.allDay && e.start >= info.start && e.start < info.end
+        );
+        if (!timedEvents.length) return;
+        const earliest = timedEvents.reduce((a, b) => a.start < b.start ? a : b);
+        const d = new Date(earliest.start);
+        d.setMinutes(d.getMinutes() - 30);  // 30분 여유 두고 스크롤
+        const h = Math.max(0, d.getHours());
+        const m = d.getMinutes() < 0 ? 0 : d.getMinutes();
+        calendar.scrollToTime({ hours: h, minutes: m });
+      }, 200);
+    } else {
+      calendar.setOption('height', 'auto');  // 월간 뷰: 원래대로
+    }
   }
 });
 calendar.render();  // 실제 화면에 그리기
