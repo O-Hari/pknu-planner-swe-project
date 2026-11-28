@@ -108,6 +108,51 @@ app.delete('/api/events/:id', (req, res) => {
 });
 //app.listen(3000, () => console.log('캘린더 실행: http://localhost:3000'));  // 3000번 포트에서 요청 기디리기
 
+const TEAM_API_URL = (process.env.TEAM_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+
+// 팀 FastAPI 조회 API 연결
+app.get('/api/team/*path', async (req, res) => {
+  const authorization = req.get('authorization');
+
+  if (!authorization?.startsWith('Bearer ')) {
+    return res.status(401).json({
+      error: '로그인이 필요합니다.'
+    });
+  }
+
+  try {
+    const segments = req.params.path;
+    const apiPath = Array.isArray(segments)
+      ? segments.join('/')
+      : segments;
+
+    const url = new URL(`/api/v1/${apiPath}`, TEAM_API_URL);
+
+    for (const [key, value] of Object.entries(req.query)) {
+      if (typeof value === 'string') {
+        url.searchParams.set(key, value);
+      }
+    }
+
+    const response = await fetch(url, {
+      headers: {
+        Authorization: authorization
+      },
+      signal: AbortSignal.timeout(15000)
+    });
+
+    const result = await response.json();
+    res.status(response.status).json(result);
+
+  } catch (error) {
+    console.error('팀 API 연결 오류:', error);
+    res.status(502).json({
+      error: '팀 FastAPI 연결에 실패했습니다.'
+    });
+  }
+});
+
+
 // Render 서버가 지정하는 포트에서 요청 기다리기
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => { console.log(`Server running on port ${PORT}`); });

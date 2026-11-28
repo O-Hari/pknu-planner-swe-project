@@ -23,6 +23,151 @@ let editingId = null;
 let selectedDate = null;
 let selectedEvent = null;
 
+
+const TEAM_ACCESS_TOKEN_KEY = 'team_api_access_token';
+
+// 팀 FastAPI 호출
+async function fetchTeamAPI(path) {
+  const token = sessionStorage.getItem(TEAM_ACCESS_TOKEN_KEY);
+
+  if (!token) {
+    throw new Error('팀 API 로그인 정보가 없습니다.');
+  }
+
+  const response = await fetch(`/api/team/${path}`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`팀 API 요청 실패: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+// 강의 시간 형식 변환
+function formatLectureTime(time) {
+  return time ? time.slice(0, 5) : '';
+}
+
+// FastAPI 강의 데이터를 FullCalendar 형식으로 변환
+function convertLectureEvents(data) {
+  if (!data.timetable) return [];
+
+  const sectionMap = new Map(
+    data.timetable.sections.map(item => [
+      String(item.course_section_id),
+      item.section
+    ])
+  );
+
+  const events = [];
+
+  for (const occurrence of data.classes) {
+    const section = sectionMap.get(
+      String(occurrence.section_id)
+    );
+
+    if (!section) continue;
+
+    const meeting = section.meetings.find(
+      m => String(m.id) === String(occurrence.meeting_id)
+    );
+
+    if (!meeting) continue;
+
+    const startTime = formatLectureTime(meeting.starts_at);
+    const endTime = formatLectureTime(meeting.ends_at);
+
+    // 실제 시각이 없는 교시 데이터는 변환 규칙 확정 후 처리
+    if (!startTime || !endTime) continue;
+
+    const date = occurrence.date;
+
+    events.push({
+      id: `lecture-${occurrence.meeting_id}-${date}`,
+      title: section.course.course_name,
+      start: `${date}T${startTime}:00`,
+      end: `${date}T${endTime}:00`,
+      allDay: false,
+      backgroundColor: '#10b981',
+      borderColor: '#10b981',
+
+      extendedProps: {
+        type: 'lecture',
+        sectionId: occurrence.section_id,
+        meetingId: occurrence.meeting_id,
+        occurrenceDate: date,
+        startDate: date,
+        endDate: date,
+        startTime,
+        endTime,
+        location: meeting.room || section.room_summary || '',
+        description: `담당 교수: ${section.instructor_name || '미정'}`,
+        eventColor: '#10b981'
+      }
+    });
+  }
+
+  return events;
+}
+
+// 개인 일정과 강의 일정 합치기
+async function loadAllCalendarEvents(fetchInfo) {
+  const startDate = fetchInfo.startStr.slice(0, 10);
+  const endDate = fetchInfo.endStr.slice(0, 10);
+
+  // 기존 SQLite 개인 일정
+  const response = await fetch('/api/events');
+
+  if (!response.ok) {
+    throw new Error('개인 일정을 불러오지 못했습니다.');
+  }
+
+  const personalEvents = await response.json();
+
+  const formattedPersonalEvents = personalEvents.map(event => ({
+    ...event,
+    id: `personal-${event.id}`,
+    extendedProps: {
+      ...event.extendedProps,
+      type: 'personal',
+      originalId: event.id
+    }
+  }));
+
+  // 팀 시간표 목록 조회
+  const timetables = await fetchTeamAPI('timetables');
+
+  if (!timetables.length) {
+    return formattedPersonalEvents;
+  }
+
+  const timetable =
+    timetables.find(t => t.is_primary) || timetables[0];
+
+  const params = new URLSearchParams({
+    start_date: startDate,
+    end_date: endDate,
+    timetable_id: String(timetable.id)
+  });
+
+  // 팀 API에서 반복 강의 조회
+  const data = await fetchTeamAPI(
+    `calendar?${params.toString()}`
+  );
+
+  const lectureEvents = convertLectureEvents(data);
+
+  return [
+    ...formattedPersonalEvents,
+    ...lectureEvents
+  ];
+}
+
+
 function localDateString(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 }
@@ -43,7 +188,7 @@ function openCreate(dateStr = localDateString()) {  // 일정 등록창을 열�
   titleInput.focus();
 }
 function openEdit(event) {
-  editingId = event.id;
+  editingId = event.extendedProps.originalId; // SQLite ID를 사용
   formError.textContent = '';
   document.getElementById('dialogTitle').textContent = '일정 수정';
   titleInput.value = event.title;
@@ -109,6 +254,9 @@ function openDateList(dateStr) {
 // 조회 전용 상세창: input 대신 일반 텍스트로 표시
 function openDetail(event) {
   selectedEvent = event;
+  const isLecture = event.extendedProps.type === 'lecture';
+  document.getElementById('detailEditBtn').hidden = isLecture;
+  document.getElementById('detailDeleteBtn').hidden = isLecture;
   detailError.textContent = '';
   document.getElementById('detailTitle').textContent = event.title;
   document.getElementById('detailStart').textContent = event.startStr.slice(0, 10);
@@ -141,7 +289,15 @@ const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), 
   firstDay: 0,  // 일요일부터 한 주 시작
   height: 'auto',
   headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
-  events: '/api/events',
+  events: async function(fetchInfo, successCallback, failureCallback) { // 개인 일정뿐 아니라 FastAPI의 강의 일정도 함께 가져오려고 시도하게 됨
+    try {
+      const events = await loadAllCalendarEvents(fetchInfo);
+      successCallback(events);
+    } catch (error) {
+      console.error('일정 조회 오류:', error);
+      failureCallback(error);
+    }
+  },
   dateClick: info => openDateList(info.dateStr.slice(0, 10)),  // 날짜를 클릭했을 때 openDateList()를 실행
   eventClick: info => { // 일정 클릭했을 때 openDetail() 실행
     info.jsEvent.preventDefault();
@@ -259,6 +415,16 @@ async function removeEvent(id, errorElement, modal) {
 }
 
 deleteBtn.addEventListener('click', () => removeEvent(editingId, formError, dialog));
-document.getElementById('detailDeleteBtn').addEventListener('click', () => {
-  if (selectedEvent) removeEvent(selectedEvent.id, detailError, detailDialog);
+document.getElementById('detailDeleteBtn').addEventListener('click', () => {  // 강의: 조회만 가능, 개인 일정: 수정/삭제 가능
+  if (!selectedEvent) return;
+
+  if (selectedEvent.extendedProps.type !== 'personal') {
+    return;
+  }
+
+  removeEvent(
+    selectedEvent.extendedProps.originalId,
+    detailError,
+    detailDialog
+  );
 });
