@@ -1,20 +1,38 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>월간 캘린더</title>
+  <title>캘린더</title>
   <link rel="stylesheet" href="style.css">
-  <!-- 사용법을 단순하게 하기 위해 FullCalendar 6 버전을 고정해서 사용 -->
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.22/index.global.min.js"></script>  <!-- FullCanlender의 기능 불러오기 -->
-  <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.22/locales-all.global.min.js"></script>  <!-- 여러 언어 설정 불러오기 -->
-  <script src="app.js" defer></script>  <!-- 작성한  JavaScript 코드 불러오기 -->
+
+  <!-- FullCalendar 라이브러리 -->
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.22/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.22/locales-all.global.min.js"></script>
+
+  <!-- Supabase 로그인 라이브러리 (추가) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- 로그인 기능 (추가) -->
+  <script src="auth.js" defer></script>
+
+  <!-- 기존 캘린더 기능 -->
+  <script src="app.js" defer></script>
 </head>
+
 <body>
   <main class="container">
     <header class="topbar">
       <div><h1>월간 캘린더</h1><p>날짜를 클릭하면 일정을 추가할 수 있습니다.</p></div>
       <button id="addBtn" type="button">+ 일정 등록</button>
+
+      <div id="authArea">
+        <span id="loginStatus">로그인하지 않음</span>
+        <button id="loginBtn" type="button">로그인</button>
+        <button id="logoutBtn" type="button" hidden>로그아웃</button>
+      </div>
+
     </header>
     <div id="calendar"></div>
   </main>
@@ -91,4 +109,39 @@
     </form>
   </dialog>
 </body>
+
+
+<!-- 로그인 다이얼로그 -->
+<dialog id="loginDialog">
+  <form id="loginForm">
+    <h2>로그인</h2>
+
+    <label for="loginEmail">이메일</label>
+    <input
+      id="loginEmail"
+      type="email"
+      autocomplete="username"
+      required
+    >
+
+    <label for="loginPassword">비밀번호</label>
+    <input
+      id="loginPassword"
+      type="password"
+      autocomplete="current-password"
+      required
+    >
+
+    <p id="loginError" role="alert"></p>
+
+    <div class="actions">
+      <button id="loginCancelBtn" type="button" class="secondary">
+        취소
+      </button>
+      <button type="submit">로그인</button>
+    </div>
+  </form>
+</dialog>
+
+
 </html>

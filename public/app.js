@@ -23,16 +23,16 @@ let editingId = null;
 let selectedDate = null;
 let selectedEvent = null;
 
-
-const TEAM_ACCESS_TOKEN_KEY = 'team_api_access_token';
-
 // 팀 FastAPI 호출
 async function fetchTeamAPI(path) {
-  const token = sessionStorage.getItem(TEAM_ACCESS_TOKEN_KEY);
+  const { data, error } =
+    await window.teamSupabase.auth.getSession();
 
-  if (!token) {
-    throw new Error('팀 API 로그인 정보가 없습니다.');
+  if (error || !data.session) {
+    throw new Error('로그인이 필요합니다.');
   }
+
+  const token = data.session.access_token;
 
   const response = await fetch(`/api/team/${path}`, {
     headers: {
@@ -235,33 +235,50 @@ async function loadAllCalendarEvents(fetchInfo) {
     }
   }));
 
-  // 팀 시간표 목록 조회
-  const timetables = await fetchTeamAPI('timetables');
+  // 로그인 여부 확인
+  const { data: { session } } =
+    await window.teamSupabase.auth.getSession();
 
-  if (!timetables.length) {
+  // 로그인하지 않은 경우 개인 일정만 표시
+  if (!session) {
     return formattedPersonalEvents;
   }
 
-  const timetable =
-    timetables.find(t => t.is_primary) || timetables[0];
+  try {
+    // 팀 시간표 목록 조회
+    const timetables = await fetchTeamAPI('timetables');
 
-  const params = new URLSearchParams({
-    start_date: startDate,
-    end_date: endDate,
-    timetable_id: String(timetable.id)
-  });
+    if (!timetables.length) {
+      return formattedPersonalEvents;
+    }
 
-  // 팀 API에서 반복 강의 조회
-  const data = await fetchTeamAPI(
-    `calendar?${params.toString()}`
-  );
+    const timetable =
+      timetables.find(t => t.is_primary) || timetables[0];
 
-  const lectureEvents = convertLectureEvents(data);
+    const params = new URLSearchParams({
+      start_date: startDate,
+      end_date: endDate,
+      timetable_id: String(timetable.id)
+    });
 
-  return [
-    ...formattedPersonalEvents,
-    ...lectureEvents
-  ];
+    // 등록한 강의 일정 조회
+    const data = await fetchTeamAPI(
+      `calendar?${params.toString()}`
+    );
+
+    const lectureEvents = convertLectureEvents(data);
+
+    return [
+      ...formattedPersonalEvents,
+      ...lectureEvents
+    ];
+
+  } catch (error) {
+    console.error('강의 일정 조회 실패:', error);
+
+    // 강의 API에 문제가 있어도 개인 일정은 유지
+    return formattedPersonalEvents;
+  }
 }
 
 
@@ -421,6 +438,11 @@ const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), 
   }
 });
 calendar.render();  // 실제 화면에 그리기
+
+// 로그인이나 로그아웃할 때 새로고침 버튼을 누르지 않아도 캘린더의 강의 데이터를 다시 불러옴
+window.refreshTeamCalendar = () => {
+  calendar.refetchEvents();
+};
 
 // 상단의 일정 등록 버튼은 오늘 날짜로 바로 등록 가능
 document.getElementById('addBtn').addEventListener('click', () => openCreate());
