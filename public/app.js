@@ -52,9 +52,46 @@ function formatLectureTime(time) {
   return time ? time.slice(0, 5) : '';
 }
 
+
+/*
+ * 교시별 시작·종료 시각
+ * 주의: 아래 값은 테스트용 예시!
+ * 부경대학교 학부 공식 교시표를 확인한 후 수정해야 함.
+ */
+const PERIOD_TIMES = {
+  1:  { start: '09:00', end: '09:50' },
+  2:  { start: '10:00', end: '10:50' },
+  3:  { start: '11:00', end: '11:50' },
+  4:  { start: '12:00', end: '12:50' },
+  5:  { start: '13:00', end: '13:50' },
+  6:  { start: '14:00', end: '14:50' },
+  7:  { start: '15:00', end: '15:50' },
+  8:  { start: '16:00', end: '16:50' },
+  9:  { start: '17:00', end: '17:50' },
+  10: { start: '18:00', end: '18:50' },
+  11: { start: '19:00', end: '19:50' },
+  12: { start: '20:00', end: '20:50' }
+};
+
+function getLectureTime(meeting) {
+  // 실제 시각이 저장되어 있다면 해당 값 우선 사용
+  if (meeting.starts_at && meeting.ends_at) {
+    return {
+      start: formatLectureTime(meeting.starts_at),
+      end: formatLectureTime(meeting.ends_at)
+    };
+  }
+
+  // 실제 시각이 없으면 교시를 변환
+  return PERIOD_TIMES[meeting.period] || null;
+}
+
+
 // FastAPI 강의 데이터를 FullCalendar 형식으로 변환
 function convertLectureEvents(data) {
-  if (!data.timetable) return [];
+  if (!data.timetable || !Array.isArray(data.classes)) {
+    return [];
+  }
 
   const sectionMap = new Map(
     data.timetable.sections.map(item => [
@@ -63,13 +100,11 @@ function convertLectureEvents(data) {
     ])
   );
 
-  const events = [];
+  // 날짜, 분반, 강의실을 기준으로 수업 모으기
+  const groups = new Map();
 
   for (const occurrence of data.classes) {
-    const section = sectionMap.get(
-      String(occurrence.section_id)
-    );
-
+    const section = sectionMap.get(String(occurrence.section_id));
     if (!section) continue;
 
     const meeting = section.meetings.find(
@@ -78,37 +113,99 @@ function convertLectureEvents(data) {
 
     if (!meeting) continue;
 
-    const startTime = formatLectureTime(meeting.starts_at);
-    const endTime = formatLectureTime(meeting.ends_at);
+    const time = getLectureTime(meeting);
 
-    // 실제 시각이 없는 교시 데이터는 변환 규칙 확정 후 처리
-    if (!startTime || !endTime) continue;
+    if (!time) {
+      console.warn('시간 변환 불가:', meeting);
+      continue;
+    }
 
     const date = occurrence.date;
+    const location = meeting.room || section.room_summary || '';
+    const key = `${date}-${occurrence.section_id}-${location}`;
 
-    events.push({
-      id: `lecture-${occurrence.meeting_id}-${date}`,
-      title: section.course.course_name,
-      start: `${date}T${startTime}:00`,
-      end: `${date}T${endTime}:00`,
-      allDay: false,
-      backgroundColor: '#10b981',
-      borderColor: '#10b981',
-
-      extendedProps: {
-        type: 'lecture',
+    if (!groups.has(key)) {
+      groups.set(key, {
+        date,
         sectionId: occurrence.section_id,
-        meetingId: occurrence.meeting_id,
-        occurrenceDate: date,
-        startDate: date,
-        endDate: date,
-        startTime,
-        endTime,
-        location: meeting.room || section.room_summary || '',
-        description: `담당 교수: ${section.instructor_name || '미정'}`,
-        eventColor: '#10b981'
-      }
+        section,
+        location,
+        meetings: []
+      });
+    }
+
+    groups.get(key).meetings.push({
+      ...time,
+      period: meeting.period,
+      meetingId: meeting.id
     });
+  }
+
+  const events = [];
+
+  for (const group of groups.values()) {
+    const meetings = group.meetings.sort(
+      (a, b) => a.start.localeCompare(b.start)
+    );
+
+    // 연속된 교시를 한 일정으로 합치기
+    const blocks = [];
+
+    for (const meeting of meetings) {
+      const previous = blocks[blocks.length - 1];
+
+      if (
+        previous &&
+        Number.isInteger(previous.lastPeriod) &&
+        Number.isInteger(meeting.period) &&
+        meeting.period === previous.lastPeriod + 1
+      ) {
+        previous.end = meeting.end;
+        previous.lastPeriod = meeting.period;
+        previous.periods.push(meeting.period);
+      } else {
+        blocks.push({
+          start: meeting.start,
+          end: meeting.end,
+          firstPeriod: meeting.period,
+          lastPeriod: meeting.period,
+          periods: Number.isInteger(meeting.period)
+            ? [meeting.period]
+            : [],
+          meetingId: meeting.meetingId
+        });
+      }
+    }
+
+    for (const block of blocks) {
+      const periodText = block.periods.length
+        ? `${block.firstPeriod}~${block.lastPeriod}교시`
+        : '';
+
+      events.push({
+        id: `lecture-${group.sectionId}-${group.date}-${block.meetingId}`,
+        title: group.section.course.course_name,
+        start: `${group.date}T${block.start}:00`,
+        end: `${group.date}T${block.end}:00`,
+        allDay: false,
+        backgroundColor: '#10b981',
+        borderColor: '#10b981',
+
+        extendedProps: {
+          type: 'lecture',
+          sectionId: group.sectionId,
+          startDate: group.date,
+          endDate: group.date,
+          startTime: block.start,
+          endTime: block.end,
+          location: group.location,
+          description:
+            `담당 교수: ${group.section.instructor_name || '미정'}` +
+            (periodText ? `\n수업 교시: ${periodText}` : ''),
+          eventColor: '#10b981'
+        }
+      });
+    }
   }
 
   return events;
